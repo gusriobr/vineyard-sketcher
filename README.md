@@ -11,3 +11,6 @@ https://github.com/gusriobr/vineyard-detector
 
 
 Density Map Guided Object Detection in Aerial Images Changlin Li1, Taojiannan Yang1, Sijie Zhu1, Chen Chen1, Shanyue Guan2 1University of North Carolina at Charlotte 2East Carolina University {cli33, tyang30, szhu3, chen.chen}@uncc.edu, guans18@ecu.edu
+
+
+Texturesegmentation:anobjectivecomparison betweentraditionalanddeep-learningmethodologie
