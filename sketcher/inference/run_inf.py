@@ -1,13 +1,13 @@
 import logging
 import os
+import sys
 
 import numpy as np
 import skimage
-import sys
 from skimage import io
 
 from image.mask import MaskMerger
-from image.patches import sliding_window
+from image.patches import batched_sliding_window
 
 ROOT_DIR = os.path.abspath("../../")
 
@@ -20,6 +20,8 @@ from image.raster import georeference_image
 from sketcher import cfg
 
 cfg.configLog()
+
+debug = False
 
 
 def comp_file(filename):
@@ -39,6 +41,24 @@ def get_folder(filepath):
     return f_path
 
 
+def predict_batch(model, images, positions, output_mask, mask_merger):
+    # set the batchsize
+    model.config.IMAGES_PER_GPU = images.shape[0]
+    model.config.BATCH_SIZE = config.IMAGES_PER_GPU * config.GPU_COUNT
+    detection = model.detect(images, verbose=1)
+    for i in range(0, images.shape[0]):
+        masks = detection[i]['masks']
+        x, y = positions[i]
+        if masks.shape[-1] > 0:
+            # We're treating all instances as one, so collapse the mask into one layer
+            # mask = (np.sum(masks, -1, keepdims=True) >= 1)
+            mask_merger.apply(output_mask, masks, (x, y))
+            for i in range(0, masks.shape[-1]):
+                print("{}_{}".format(y, x))
+                if debug:
+                    skimage.io.imsave("/tmp/salidas/{}_{}_{}_mask.png".format(y, x, i), masks[:, :, i])
+
+
 def predict(model, image, output_mask, x, y, mask_merger):
     # Detect objects
     r = model.detect([image], verbose=1)[0]
@@ -50,10 +70,11 @@ def predict(model, image, output_mask, x, y, mask_merger):
         mask_merger.apply(output_mask, masks, (x, y))
         for i in range(0, masks.shape[-1]):
             print("{}_{}".format(y, x))
-            skimage.io.imsave("/tmp/salidas/{}_{}_{}_mask.png".format(y, x, i), masks[:, :, i])
+            if debug:
+                skimage.io.imsave("/tmp/salidas/{}_{}_{}_mask.png".format(y, x, i), masks[:, :, i])
 
 
-def apply_model(image_path, output_path, model, step_size, window_size):
+def apply_model(image_path, output_path, model, step_size, window_size, batch_size=1):
     # load the input image
     image = read_img(image_path)
 
@@ -65,14 +86,15 @@ def apply_model(image_path, output_path, model, step_size, window_size):
     output_img = np.zeros((h, w, 1), dtype=np.uint8)
     mask_merger = MaskMerger()
 
-    for img, x, y in sliding_window(image, window_size, step_size):
-        predict(model, img, output_img, x, y, mask_merger)
+    for images, positions in batched_sliding_window(image, window_size, step_size, batch_size=batch_size):
+        predict_batch(model, images, positions, output_img, mask_merger)
         # y_pred = predict(model, img, x, y, mask_merger)
-        # output_img[y:y + window_size[1], x:x + window_size[0]] += y_pred.astype(np.uint8)
-        f_name = "/tmp/salidas/{}_{}_image_output.jpeg".format(y, x)
-        skimage.io.imsave(f_name, output_img)
-        f_name = "/tmp/salidas/{}_{}_image_input.jpeg".format(y, x)
-        skimage.io.imsave(f_name, img)
+        if debug:
+            for i in range(0, images.shape[0]):
+                f_name = "/tmp/salidas/{}_{}_image_output.jpeg".format(positions[0][0], positions[0][1])
+                skimage.io.imsave(f_name, output_img)
+                f_name = "/tmp/salidas/{}_{}_image_input.jpeg".format(positions[0][0], positions[0][1])
+                skimage.io.imsave(f_name, images[i])
 
     # normalizar
     norm_factor = 255 // output_img.max()
@@ -97,20 +119,30 @@ if __name__ == '__main__':
     # load srs model
     logs = '/media/gus/workspace/wml/vineyard-sketcher/logs'
     input_folder = '/media/gus/data/rasters/aerial/pnoa/2020/'
-    output_folder = '/media/gus/data/viticola/raster/processed_v4'
+
+    output_folder = '/media/gus/workspace/wml/vineyard-sketcher/results/iteration3/predictions/'
 
     input_images = [os.path.join(input_folder, f_image) for f_image in os.listdir(input_folder) if
                     f_image.endswith(".tif")]
     # input_images = [x for x in input_images if 'PNOA_CYL_2020_25cm_OF_etrsc_rgb_hu30_h05_0345_8-6.tif' in x]
 
-    input_images = ['/media/gus/workspace/wml/vineyard-sketcher/test/resources/aerial1.tif',
-                    '/media/gus/workspace/wml/vineyard-sketcher/test/resources/aerial2.tif']
+    input_images = [
+        # '/media/gus/workspace/wml/vineyard-sketcher/test/resources/aerial0.tif',
+        '/media/gus/workspace/wml/vineyard-sketcher/test/resources/aerial1.tif',
+        # '/media/gus/workspace/wml/vineyard-sketcher/test/resources/aerial2.tif'
+    ]
     input_images.sort()
-    config = InferenceConfig()
 
+    ######################
+    ### CONFIG
+    ######################
     patch_size = 512
-    weights_path = '/media/gus/workspace/wml/vineyard-sketcher/results/iteration2/mask_rcnn_vineyard_0030.h5'
+    batch_size = 128
 
+    config = InferenceConfig()
+    weights_path = '/media/gus/workspace/wml/vineyard-sketcher/results/iteration3/mask_rcnn_vineyard_0037.h5'
+
+    # model initialization
     model = modellib.MaskRCNN(mode="inference", config=config, model_dir=logs)
     model.load_weights(weights_path, by_name=True)
 
@@ -121,7 +153,7 @@ if __name__ == '__main__':
         filename = os.path.basename(input)
         base, ext = os.path.splitext(filename)
         outf = os.path.join(output_folder, "{}_{}{}".format(base, tag, ext))
-        apply_model(input, outf, model, window_size=(512, 512), step_size=100)
+        apply_model(input, outf, model, window_size=(512, 512), step_size=100, batch_size=batch_size)
 
         logging.info("Applying geolocation info.")
         rimg = read_img(outf)

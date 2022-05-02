@@ -34,18 +34,21 @@ import sys
 import imgaug
 import numpy as np
 import skimage.draw
+import tensorflow as tf
 
-# import tensorflow as tf
-# # disable gpu
-# tf.config.set_visible_devices([], 'GPU')
+
+physical_devices = tf.config.list_physical_devices('GPU')
+tf.config.experimental.set_memory_growth(physical_devices[0], True)
+# disable gpu
+tf.config.set_visible_devices([], 'GPU')
 
 # Root directory of the project
-
 ROOT_DIR = os.path.abspath("../../")
 
 # Import Mask RCNN
 sys.path.append(ROOT_DIR)  # To find local version of the library
 
+from mrcnn.backbone.basic_cnn import cnn_graph, compute_backbone_shapes
 from mrcnn.config import Config
 from mrcnn import model as modellib, utils
 
@@ -69,13 +72,13 @@ class VineyardConfig(Config):
     """
     # Give the configuration a recognizable name
     NAME = "vineyard"
-    EPOCHS = 30
+    EPOCHS = 40
 
     # We use a GPU with 12GB memory, which can fit two images.
     # Adjust down if you use a smaller GPU.
     IMAGES_PER_GPU = 1
 
-    # IMAGE_RESIZE_MODE = "crop"
+    IMAGE_RESIZE_MODE = "crop"
     IMAGE_MIN_DIM = 512
     IMAGE_MAX_DIM = 512
 
@@ -95,6 +98,13 @@ class VineyardConfig(Config):
 
     # Skip detections with < 90% confidence
     DETECTION_MIN_CONFIDENCE = 0.9
+
+    BACKBONE = cnn_graph
+
+    # Only useful if you supply a callable to BACKBONE. Should compute
+    # the shape of each layer of the FPN Pyramid.
+    # See model.compute_backbone_shapes
+    COMPUTE_BACKBONE_SHAPE = compute_backbone_shapes
 
 
 ############################################################
@@ -132,11 +142,13 @@ def train(model):
         imgaug.augmenters.ShearX((-10, 10)),
         imgaug.augmenters.GaussianBlur(sigma=(0.0, 0.8))
     ])
+    augmentation = None
 
-    model.train(dataset_train, dataset_val,
+    model.train(dataset_train, dataset_val, augmentation=augmentation,
                 learning_rate=config.LEARNING_RATE,
                 epochs=config.EPOCHS,
                 layers='heads')
+    print("Train finished successfully.")
 
 
 def color_splash(image, mask):
@@ -159,7 +171,7 @@ def color_splash(image, mask):
     return splash
 
 
-def detect_and_color_splash(model, image_path=None, video_path=None):
+def detect_and_color(model, image_path=None, video_path=None):
     assert image_path or video_path
 
     # Image or video?
@@ -218,19 +230,21 @@ def detect_and_color_splash(model, image_path=None, video_path=None):
 if __name__ == '__main__':
     import argparse
 
+    # os.environ["LD_LIBRARY_PATH"] = "/usr/local/cuda/targets/x86_64-linux/lib" + ":" + os.environ["LD_LIBRARY_PATH"]
+
     # Parse command line arguments
     # sys.argv.extend(
-    #     ["splash", "--weights", "/media/gus/workspace/wml/vineyard-sketcher/logs/balloon20220415T0925/mask_rcnn_balloon_0016.h5",
+    #     ["predict", "--weights", "/media/gus/workspace/wml/vineyard-sketcher/logs/balloon20220415T0925/mask_rcnn_balloon_0016.h5",
     #      "--image", "/media/gus/workspace/wml/vineyard-sketcher/resources/dataset/v2/val/img7.jpeg"])
 
     # sys.argv.extend(
     #     ["train", "--dataset", "/media/gus/workspace/wml/Mask_RCNN_TF2/datasets/balloon" "--weights", "coco"])
     #
     sys.argv.extend(
-        ["train", "--dataset", "/media/gus/workspace/wml/vineyard-sketcher/resources/dataset/v2", "--weights", "imagenet"])
+        ["train", "--dataset", "/media/gus/workspace/wml/vineyard-sketcher/resources/dataset/v2", "--weights", "vineyard"])
     """
     sys.argv.extend(
-        ["splash", "--weights",
+        ["predict", "--weights",
          '/media/gus/workspace/wml/vineyard-sketcher/results/iteration2/mask_rcnn_vineyard_0030.h5',
          "--image",
          '/media/gus/workspace/wml/vineyard-sketcher/results/iteration2/pred4.jpeg'])
@@ -241,7 +255,7 @@ if __name__ == '__main__':
         description='Train Mask R-CNN to detect balloons.')
     parser.add_argument("command",
                         metavar="<command>",
-                        help="'train' or 'splash'")
+                        help="'train' or 'predict'")
     parser.add_argument('--dataset', required=False,
                         metavar="/path/to/balloon/dataset/",
                         help='Directory of the Balloon dataset')
@@ -254,18 +268,18 @@ if __name__ == '__main__':
                         help='Logs and checkpoints directory (default=logs/)')
     parser.add_argument('--image', required=False,
                         metavar="path or URL to image",
-                        help='Image to apply the color splash effect on')
+                        help='Image to apply the color predict effect on')
     parser.add_argument('--video', required=False,
                         metavar="path or URL to video",
-                        help='Video to apply the color splash effect on')
+                        help='Video to apply the color predict effect on')
     args = parser.parse_args()
 
     # Validate arguments
     if args.command == "train":
         assert args.dataset, "Argument --dataset is required for training"
-    elif args.command == "splash":
+    elif args.command == "predict":
         assert args.image or args.video, \
-            "Provide --image or --video to apply color splash"
+            "Provide --image or --video to apply color predict"
 
     print("Weights: ", args.weights)
     print("Dataset: ", args.dataset)
@@ -281,11 +295,9 @@ if __name__ == '__main__':
             GPU_COUNT = 1
             IMAGES_PER_GPU = 1
 
-
         config = InferenceConfig()
     config.display()
 
-    os.environ["LD_LIBRARY_PATH"] = "/usr/local/cuda/targets/x86_64-linux/lib" + ":" + os.environ["LD_LIBRARY_PATH"]
     # Create model
     if args.command == "train":
         model = modellib.MaskRCNN(mode="training", config=config,
@@ -306,26 +318,30 @@ if __name__ == '__main__':
     elif args.weights.lower() == "imagenet":
         # Start from ImageNet trained weights
         weights_path = model.get_imagenet_weights()
+    elif args.weights.lower() == "vineyard":
+        # Start from ImageNet trained weights
+        weights_path = '/media/gus/workspace/wml/vineyard-sketcher/resources/model/vny/checkpoint.h5'
     else:
         weights_path = args.weights
 
     # Load weights
     print("Loading weights ", weights_path)
-    if args.weights.lower() == "coco":
-        # Exclude the last layers because they require a matching
-        # number of classes
-        model.load_weights(weights_path, by_name=True, exclude=[
-            "mrcnn_class_logits", "mrcnn_bbox_fc",
-            "mrcnn_bbox", "mrcnn_mask"])
-    else:
-        model.load_weights(weights_path, by_name=True)
+    if args.weights.lower() != "none":
+        if args.weights.lower() == "coco":
+            # Exclude the last layers because they require a matching
+            # number of classes
+            model.load_weights(weights_path, by_name=True, exclude=[
+                "mrcnn_class_logits", "mrcnn_bbox_fc",
+                "mrcnn_bbox", "mrcnn_mask"])
+        else:
+            model.load_weights(weights_path, by_name=True)
 
     # Train or evaluate
     if args.command == "train":
         train(model)
-    elif args.command == "splash":
-        detect_and_color_splash(model, image_path=args.image,
-                                video_path=args.video)
+    elif args.command == "predict":
+        detect_and_color(model, image_path=args.image,
+                         video_path=args.video)
     else:
         print("'{}' is not recognized. "
               "Use 'train' or 'splash'".format(args.command))
