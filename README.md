@@ -10,6 +10,28 @@ https://github.com/gusriobr/vineyard-detector
 
 # Conclusions
 
+
+Iteration 0:
+Try the modelo
+
+Iteration 1:
+Train using custom dataset
+
+Iteration 2:
+Use image augmnetation
+
+Iteration 3:
+Parametrize
+
+Iteration 3:
+
+Use custom backbone
+
+Iteration 5:
+remove FPN
+
+
+
 # Resources
 
 A Review on Deep Learning Techniques Applied to Semantic Segmentation
