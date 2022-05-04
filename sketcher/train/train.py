@@ -99,12 +99,12 @@ class VineyardConfig(Config):
     # Skip detections with < 90% confidence
     DETECTION_MIN_CONFIDENCE = 0.9
 
-    BACKBONE = cnn_graph
-
-    # Only useful if you supply a callable to BACKBONE. Should compute
-    # the shape of each layer of the FPN Pyramid.
-    # See model.compute_backbone_shapes
-    COMPUTE_BACKBONE_SHAPE = compute_backbone_shapes
+    # BACKBONE = cnn_graph
+    #
+    # # Only useful if you supply a callable to BACKBONE. Should compute
+    # # the shape of each layer of the FPN Pyramid.
+    # # See model.compute_backbone_shapes
+    # COMPUTE_BACKBONE_SHAPE = compute_backbone_shapes
 
 
 ############################################################
