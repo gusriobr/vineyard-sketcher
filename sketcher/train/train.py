@@ -38,9 +38,10 @@ import tensorflow as tf
 
 
 physical_devices = tf.config.list_physical_devices('GPU')
-tf.config.experimental.set_memory_growth(physical_devices[0], True)
-# disable gpu
-tf.config.set_visible_devices([], 'GPU')
+if len(physical_devices) > 0:
+    tf.config.experimental.set_memory_growth(physical_devices[0], True)
+    # disable gpu
+    tf.config.set_visible_devices([], 'GPU')
 
 # Root directory of the project
 ROOT_DIR = os.path.abspath("../../")
@@ -99,12 +100,12 @@ class VineyardConfig(Config):
     # Skip detections with < 90% confidence
     DETECTION_MIN_CONFIDENCE = 0.9
 
-    # BACKBONE = cnn_graph
+    BACKBONE = cnn_graph
     #
     # # Only useful if you supply a callable to BACKBONE. Should compute
     # # the shape of each layer of the FPN Pyramid.
     # # See model.compute_backbone_shapes
-    # COMPUTE_BACKBONE_SHAPE = compute_backbone_shapes
+    COMPUTE_BACKBONE_SHAPE = compute_backbone_shapes
 
 
 ############################################################

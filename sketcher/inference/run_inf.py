@@ -6,9 +6,6 @@ import numpy as np
 import skimage
 from skimage import io
 
-from image.mask import MaskMerger
-from image.patches import batched_sliding_window
-
 ROOT_DIR = os.path.abspath("../../")
 
 # Import Mask RCNN
@@ -17,6 +14,8 @@ sys.path.append(ROOT_DIR)  # To find local version of the library
 from mrcnn import model as modellib
 from sketcher.train.train import VineyardConfig
 from image.raster import georeference_image
+from image.mask import MaskMerger
+from image.patches import batched_sliding_window
 from sketcher import cfg
 
 cfg.configLog()
@@ -153,7 +152,7 @@ if __name__ == '__main__':
         filename = os.path.basename(input)
         base, ext = os.path.splitext(filename)
         outf = os.path.join(output_folder, "{}_{}{}".format(base, tag, ext))
-        apply_model(input, outf, model, window_size=(512, 512), step_size=100, batch_size=batch_size)
+        apply_model(input, outf, model, window_size=(512, 512), step_size=400, batch_size=batch_size)
 
         logging.info("Applying geolocation info.")
         rimg = read_img(outf)

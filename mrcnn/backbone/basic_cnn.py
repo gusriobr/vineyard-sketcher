@@ -117,10 +117,11 @@ def compute_backbone_shapes(self, image_shape, config):
     Returns:
         [N, (height, width)]. Where N is the number of stages
     """
+    strides = [2, 4, 8, 16, 32]
     return np.array(
         [[int(math.ceil(image_shape[0] / stride)),
           int(math.ceil(image_shape[1] / stride))]
-         for stride in config.BACKBONE_STRIDES])
+         for stride in strides])
 
 
 if __name__ == '__main__':
@@ -132,8 +133,6 @@ if __name__ == '__main__':
     model = build(input_image)
 
     model.load_weights(w_path)
-
-
 
     model.summary()
     print("Loaded!")
