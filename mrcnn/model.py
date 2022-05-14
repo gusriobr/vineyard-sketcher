@@ -263,7 +263,7 @@ class MaskRCNN(object):
         # TODO: add assert to varify feature map sizes match what's in config
         P5 = KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c5p5')(C5)
         P4 = KL.Add(name="fpn_p4add")([
-            KL.UpSampling2D(size=(1, 1), name="fpn_p5upsampled")(P5),  # 2,2
+            KL.UpSampling2D(size=(2, 2), name="fpn_p5upsampled")(P5),  # 2,2
             KL.Conv2D(config.TOP_DOWN_PYRAMID_SIZE, (1, 1), name='fpn_c4p4')(C4)])
         P3 = KL.Add(name="fpn_p3add")([
             KL.UpSampling2D(size=(2, 2), name="fpn_p4upsampled")(P4),

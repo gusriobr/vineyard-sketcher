@@ -7,16 +7,15 @@ import skimage
 from skimage import io
 
 ROOT_DIR = os.path.abspath("../../")
-
 # Import Mask RCNN
 sys.path.append(ROOT_DIR)  # To find local version of the library
 
 from mrcnn import model as modellib
-from sketcher.train.train import VineyardConfig
-from image.raster import georeference_image
-from image.mask import MaskMerger
-from image.patches import batched_sliding_window
 from sketcher import cfg
+from sketcher.train.train import VineyardConfig
+from sketcher.image.raster import georeference_image
+from sketcher.image.mask import MaskMerger
+from sketcher.image.patches import batched_sliding_window
 
 cfg.configLog()
 
