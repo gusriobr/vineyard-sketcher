@@ -4,7 +4,7 @@ from affine import Affine
 from rasterio.windows import Window
 
 
-def georeference_image(img, img_source, img_filename, scale=1, bands=3):
+def georeference_image(img, img_source, img_filename, scale=1, bands=3, **kwargs):
     """
     Creates a tiff raster to store the img param using geolocation
     information from another raster.
@@ -26,10 +26,10 @@ def georeference_image(img, img_source, img_filename, scale=1, bands=3):
         meta.update({"width": img.shape[1], "height": img.shape[0]})
         new_affine = meta["transform"] * Affine.scale(1 / scale, 1 / scale)
         meta.update({"transform": new_affine})
+        if kwargs:
+            meta.update(kwargs)
 
-        print(meta)
-
-        with rasterio.open(img_filename, 'w', **meta, compress="JPEG") as dst: #, photometric="YCBCR"
+        with rasterio.open(img_filename, 'w', **meta) as dst:#, compress="JPEG") as dst: #, photometric="YCBCR"
             for ch in range(img.shape[-1]):
                 # iterate over channels and write bands
                 img_channel = img[:, :, ch]

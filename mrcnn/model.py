@@ -17,26 +17,29 @@ from distutils.version import LooseVersion
 
 import numpy as np
 import tensorflow as tf
+##### DEBUG
+
+
 import tensorflow.keras as keras
 import tensorflow.keras.backend as K
 import tensorflow.keras.layers as KL
 import tensorflow.keras.models as KM
-from tensorflow.python.eager import context
 
 from mrcnn import utils
 from mrcnn.backbone.restnet import resnet_graph
 from mrcnn.backbone.utils import compute_backbone_shapes
 from mrcnn.data import DataGenerator
 from mrcnn.format import parse_image_meta_graph, compose_image_meta, mold_image
-from mrcnn.graph import norm_boxes_graph, trim_zeros_graph
-from mrcnn.layers import BatchNorm, apply_box_deltas_graph, clip_boxes_graph, PyramidROIAlign, ProposalLayer, \
-    build_rpn_model, DetectionTargetLayer, DetectionLayer
+from mrcnn.graph import norm_boxes_graph
+from mrcnn.layers import BatchNorm, PyramidROIAlign, ProposalLayer, build_rpn_model, DetectionTargetLayer, \
+    DetectionLayer
 from mrcnn.loss import mrcnn_mask_loss_graph, mrcnn_bbox_loss_graph, mrcnn_class_loss_graph, rpn_bbox_loss_graph, \
     rpn_class_loss_graph
 
 assert LooseVersion(tf.__version__) >= LooseVersion("2.0")
 
 tf.compat.v1.disable_eager_execution()
+# tf.config.run_functions_eagerly(True)
 
 
 ############################################################
@@ -57,7 +60,6 @@ def log(text, array=None):
             text += ("min: {:10}  max: {:10}".format("", ""))
         text += "  {}".format(array.dtype)
     print(text)
-
 
 
 ############################################################

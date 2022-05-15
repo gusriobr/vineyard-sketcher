@@ -117,18 +117,18 @@ class ProposalLayer(KL.Layer):
         ix = tf.nn.top_k(scores, pre_nms_limit, sorted=True,
                          name="top_anchors").indices
         scores = utils.batch_slice([scores, ix], lambda x, y: tf.gather(x, y),
-                                   self.config.IMAGES_PER_GPU)
+                                   self.config.BATCH_SIZE)
         deltas = utils.batch_slice([deltas, ix], lambda x, y: tf.gather(x, y),
-                                   self.config.IMAGES_PER_GPU)
+                                   self.config.BATCH_SIZE)
         pre_nms_anchors = utils.batch_slice([anchors, ix], lambda a, x: tf.gather(a, x),
-                                            self.config.IMAGES_PER_GPU,
+                                            self.config.BATCH_SIZE,
                                             names=["pre_nms_anchors"])
 
         # Apply deltas to anchors to get refined anchors.
         # [batch, N, (y1, x1, y2, x2)]
         boxes = utils.batch_slice([pre_nms_anchors, deltas],
                                   lambda x, y: apply_box_deltas_graph(x, y),
-                                  self.config.IMAGES_PER_GPU,
+                                  self.config.BATCH_SIZE,
                                   names=["refined_anchors"])
 
         # Clip to image boundaries. Since we're in normalized coordinates,
@@ -136,7 +136,7 @@ class ProposalLayer(KL.Layer):
         window = np.array([0, 0, 1, 1], dtype=np.float32)
         boxes = utils.batch_slice(boxes,
                                   lambda x: clip_boxes_graph(x, window),
-                                  self.config.IMAGES_PER_GPU,
+                                  self.config.BATCH_SIZE,
                                   names=["refined_anchors_clipped"])
 
         # Filter out small boxes
@@ -155,7 +155,7 @@ class ProposalLayer(KL.Layer):
             return proposals
 
         proposals = utils.batch_slice([boxes, scores], nms,
-                                      self.config.IMAGES_PER_GPU)
+                                      self.config.BATCH_SIZE)
 
         if not context.executing_eagerly():
             # Infer the static output shape:
@@ -508,7 +508,7 @@ class DetectionTargetLayer(KL.Layer):
             [proposals, gt_class_ids, gt_boxes, gt_masks],
             lambda w, x, y, z: detection_targets_graph(
                 w, x, y, z, self.config),
-            self.config.IMAGES_PER_GPU, names=names)
+            self.config.BATCH_SIZE, names=names)
         return outputs
 
     def compute_output_shape(self, input_shape):
@@ -662,7 +662,7 @@ class DetectionLayer(KL.Layer):
         detections_batch = utils.batch_slice(
             [rois, mrcnn_class, mrcnn_bbox, window],
             lambda x, y, w, z: refine_detections_graph(x, y, w, z, self.config),
-            self.config.IMAGES_PER_GPU)
+            self.config.BATCH_SIZE)
 
         # Reshape output
         # [batch, num_detections, (y1, x1, y2, x2, class_id, class_score)] in

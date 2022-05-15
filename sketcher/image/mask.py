@@ -47,7 +47,7 @@ class MaskMerger:
             instance_id = get_max_intersect(instances, counts, self.min_intersect)
             if instance_id is None:
                 # no overlapped instance is found, create a new instance_id
-                self.current_instance_id += 1
+                self.current_instance_id += 5 # avoid consecutive Ids
                 instance_id = self.current_instance_id
             img[y:y + size, x:x + size] = np.where(mask, instance_id, img[y:y + size, x:x + size])
 

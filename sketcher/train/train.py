@@ -100,12 +100,12 @@ class VineyardConfig(Config):
     # Skip detections with < 90% confidence
     DETECTION_MIN_CONFIDENCE = 0.9
 
-    BACKBONE = cnn_graph
-    #
-    # # Only useful if you supply a callable to BACKBONE. Should compute
-    # # the shape of each layer of the FPN Pyramid.
-    # # See model.compute_backbone_shapes
-    COMPUTE_BACKBONE_SHAPE = compute_backbone_shapes
+    # BACKBONE = cnn_graph
+    # #
+    # # # Only useful if you supply a callable to BACKBONE. Should compute
+    # # # the shape of each layer of the FPN Pyramid.
+    # # # See model.compute_backbone_shapes
+    # COMPUTE_BACKBONE_SHAPE = compute_backbone_shapes
 
 
 ############################################################
@@ -238,11 +238,9 @@ if __name__ == '__main__':
     #     ["predict", "--weights", "/media/gus/workspace/wml/vineyard-sketcher/logs/balloon20220415T0925/mask_rcnn_balloon_0016.h5",
     #      "--image", "/media/gus/workspace/wml/vineyard-sketcher/resources/dataset/v2/val/img7.jpeg"])
 
-    # sys.argv.extend(
-    #     ["train", "--dataset", "/media/gus/workspace/wml/Mask_RCNN_TF2/datasets/balloon" "--weights", "coco"])
-    #
     sys.argv.extend(
-        ["train", "--dataset", "/media/gus/workspace/wml/vineyard-sketcher/resources/dataset/v2", "--weights", "vineyard"])
+        ["train", "--dataset", "/media/gus/workspace/wml/vineyard-sketcher/resources/dataset/v2", "--weights", "coco"])
+
     """
     sys.argv.extend(
         ["predict", "--weights",

@@ -4,7 +4,16 @@ import sys
 
 import numpy as np
 import skimage
+import tensorflow as tf
 from skimage import io
+import timeit
+
+physical_devices = tf.config.list_physical_devices('GPU')
+if len(physical_devices) > 0:
+    tf.config.experimental.set_memory_growth(physical_devices[0], True)
+    # disable gpu
+    # print("Disabling GPU -> Using CPU for inference")
+    # tf.config.set_visible_devices([], 'GPU')
 
 ROOT_DIR = os.path.abspath("../../")
 # Import Mask RCNN
@@ -41,35 +50,40 @@ def get_folder(filepath):
 
 def predict_batch(model, images, positions, output_mask, mask_merger):
     # set the batchsize
-    model.config.IMAGES_PER_GPU = images.shape[0]
-    model.config.BATCH_SIZE = config.IMAGES_PER_GPU * config.GPU_COUNT
-    detection = model.detect(images, verbose=1)
-    for i in range(0, images.shape[0]):
+    dummy_predictions = 0
+    if len(images) < model.config.BATCH_SIZE:  # if image array is shorter than expected batch_size, fulfill with zeros
+        dummy_predictions = model.config.BATCH_SIZE - len(images)
+        zeros = np.zeros((dummy_predictions,) + images.shape[-3:])
+        images = np.vstack([images, zeros])
+    # batch size < model batch, fullfil with zeros a
+
+    detection = model.detect(images, verbose=0)
+    for i in range(0, len(images) - dummy_predictions):
         masks = detection[i]['masks']
         x, y = positions[i]
         if masks.shape[-1] > 0:
             # We're treating all instances as one, so collapse the mask into one layer
             # mask = (np.sum(masks, -1, keepdims=True) >= 1)
             mask_merger.apply(output_mask, masks, (x, y))
-            for i in range(0, masks.shape[-1]):
-                print("{}_{}".format(y, x))
-                if debug:
+            if debug:
+                for i in range(0, masks.shape[-1]):
                     skimage.io.imsave("/tmp/salidas/{}_{}_{}_mask.png".format(y, x, i), masks[:, :, i])
 
 
-def predict(model, image, output_mask, x, y, mask_merger):
-    # Detect objects
-    r = model.detect([image], verbose=1)[0]
-    # Color splash
-    masks = r['masks']
-    if masks.shape[-1] > 0:
-        # We're treating all instances as one, so collapse the mask into one layer
-        # mask = (np.sum(masks, -1, keepdims=True) >= 1)
-        mask_merger.apply(output_mask, masks, (x, y))
-        for i in range(0, masks.shape[-1]):
-            print("{}_{}".format(y, x))
-            if debug:
-                skimage.io.imsave("/tmp/salidas/{}_{}_{}_mask.png".format(y, x, i), masks[:, :, i])
+#
+# def predict(model, image, output_mask, x, y, mask_merger):
+#     # Detect objects
+#     r = model.detect([image], verbose=1)[0]
+#     # Color splash
+#     masks = r['masks']
+#     if masks.shape[-1] > 0:
+#         # We're treating all instances as one, so collapse the mask into one layer
+#         # mask = (np.sum(masks, -1, keepdims=True) >= 1)
+#         mask_merger.apply(output_mask, masks, (x, y))
+#         for i in range(0, masks.shape[-1]):
+#             print("{}_{}".format(y, x))
+#             if debug:
+#                 skimage.io.imsave("/tmp/salidas/{}_{}_{}_mask.png".format(y, x, i), masks[:, :, i])
 
 
 def apply_model(image_path, output_path, model, step_size, window_size, batch_size=1):
@@ -81,11 +95,14 @@ def apply_model(image_path, output_path, model, step_size, window_size, batch_si
     # labels
     (h, w) = image.shape[:2]
 
-    output_img = np.zeros((h, w, 1), dtype=np.uint8)
+    output_img = np.zeros((h, w, 1), dtype=np.uint16)
     mask_merger = MaskMerger()
 
     for images, positions in batched_sliding_window(image, window_size, step_size, batch_size=batch_size):
+        start = timeit.default_timer()
         predict_batch(model, images, positions, output_img, mask_merger)
+        execution_time = timeit.default_timer() - start
+        print("Batch {} images exec time: {}".format(len(images), (execution_time)))
         # y_pred = predict(model, img, x, y, mask_merger)
         if debug:
             for i in range(0, images.shape[0]):
@@ -110,7 +127,7 @@ class InferenceConfig(VineyardConfig):
     # Set batch size to 1 since we'll be running inference on
     # one image at a time. Batch size = GPU_COUNT * IMAGES_PER_GPU
     GPU_COUNT = 1
-    IMAGES_PER_GPU = 1
+    IMAGES_PER_GPU = 8
 
 
 if __name__ == '__main__':
@@ -126,8 +143,8 @@ if __name__ == '__main__':
 
     input_images = [
         # '/media/gus/workspace/wml/vineyard-sketcher/test/resources/aerial0.tif',
-        '/media/gus/workspace/wml/vineyard-sketcher/test/resources/aerial1.tif',
-        # '/media/gus/workspace/wml/vineyard-sketcher/test/resources/aerial2.tif'
+        # '/media/gus/workspace/wml/vineyard-sketcher/test/resources/aerial1.tif',
+        '/media/gus/workspace/wml/vineyard-sketcher/test/resources/aerial2.tif'
     ]
     input_images.sort()
 
@@ -135,10 +152,11 @@ if __name__ == '__main__':
     ### CONFIG
     ######################
     patch_size = 512
-    batch_size = 128
 
     config = InferenceConfig()
+    batch_size = config.IMAGES_PER_GPU
     weights_path = '/media/gus/workspace/wml/vineyard-sketcher/results/iteration3/mask_rcnn_vineyard_0037.h5'
+    # weights_path = '/media/gus/workspace/wml/vineyard-sketcher/results/iteration2/mask_rcnn_vineyard_0030.h5'
 
     # model initialization
     model = modellib.MaskRCNN(mode="inference", config=config, model_dir=logs)
@@ -151,7 +169,7 @@ if __name__ == '__main__':
         filename = os.path.basename(input)
         base, ext = os.path.splitext(filename)
         outf = os.path.join(output_folder, "{}_{}{}".format(base, tag, ext))
-        apply_model(input, outf, model, window_size=(512, 512), step_size=400, batch_size=batch_size)
+        apply_model(input, outf, model, window_size=(512, 512), step_size=384, batch_size=batch_size)
 
         logging.info("Applying geolocation info.")
         rimg = read_img(outf)
